@@ -60,3 +60,101 @@ public class StudentsDB : DbContext
 ```
 
 Инфраструктура доступа к БД готова.
+
+## Работа с контекстом БД и его конфигурирование
+
+1. Для соединения с БД необходимо создать объект контекста БД
+
+Для этого требуется выполнить его конфигурирование (как минимум, указать строку подключения).
+
+Пусть строка подключения будет 
+
+```
+Data Source=(localdb)\MSSQLLocalDB;Initial Catalog=Students.Test.db
+```
+
+Нужно создать объект класса `DbContextOptions<StudentsDB>` и указать ему строку подключения. Делается это с помощью билдера.
+
+```C#
+var connection_options = new DbContextOptionsBuilder<StudentsDB>()
+   .UseSqlServer(sql_server_connection_string)
+   .Options;
+```
+
+Полученный объект настроек подключения можно использовать для создания экземпляров контекста БД.
+
+```C#
+using (var db = new StudentsDB(connection_options))
+{
+    // ...
+}
+
+using (var db = new StudentsDB(new DbContextOptionsBuilder<StudentsDB>().UseSqlServer(sql_server_connection_string).Options))
+{
+    // ...
+}
+```
+
+Первый вариант удобнее.
+
+2. Инициализация БД исходными данными
+
+При первом обращении к серверу БД база на сервере может отсутствовать. Её можно создать программно.
+
+```C#
+using (var db = new StudentsDB(connection_options))
+{
+    db.Database.EnsureCreated();
+}
+```
+
+3. При обращении к существующей БД можно выполнить проверку наличия в ней необходимых исходных данных, и в случае их отсусттвия добавить их
+
+```C#
+using (var db = new StudentsDB(connection_options))
+{
+    db.Database.EnsureCreated();
+
+    if (!db.Students.Any())
+    {
+        var ivanov = new Student
+        {
+            LastName = "Иванов",
+            Name = "Иван",
+            Patronymic = "Иванович",
+            Birthday = DateTime.Now.AddYears(-21),
+        };
+
+        var petrov = new Student
+        {
+            LastName = "Петров",
+            Name = "Пётр",
+            Patronymic = "Петрович",
+            Birthday = DateTime.Now.AddYears(-24),
+        };
+
+        var sidorov = new Student
+        {
+            LastName = "Сидоров",
+            Name = "Сидор",
+            Patronymic = "Сидорович",
+            Birthday = DateTime.Now.AddYears(-22),
+        };
+
+        var group1 = new Group { Name = "Группа 1" };
+        var group2 = new Group { Name = "Группа 2" };
+
+        group1.Students.Add(ivanov);
+        group1.Students.Add(petrov);
+
+        group2.Students.Add(sidorov);
+
+        db.Groups.Add(group1);
+        db.Groups.Add(group2);
+
+        db.SaveChanges();
+    }
+}
+```
+
+Важно не забыть вызвать метод `SaveChanges()`. И также важно не хранить долго экземпляр контекста БД дабы он не забивался кешируемыми данными и не замедлял работу. Контекст БД должен создаваться на время выполнения одной (возможно комплексной) операции взаимодействия с БД.
