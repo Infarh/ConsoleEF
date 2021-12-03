@@ -158,3 +158,64 @@ using (var db = new StudentsDB(connection_options))
 ```
 
 Важно не забыть вызвать метод `SaveChanges()`. И также важно не хранить долго экземпляр контекста БД дабы он не забивался кешируемыми данными и не замедлял работу. Контекст БД должен создаваться на время выполнения одной (возможно комплексной) операции взаимодействия с БД.
+
+### Использование конфигурации приложения
+
+Строку подключения к БД целесообразно хранить не в коде приложения, а в файле конфигурации. Для работы с конфигурацией приложения целесообразно использовать современные инструменты платформы в виде пакетов
+
+- `Microsoft.Extensions.Configuration.Abstractions` - общие положения, интерфейсы, классы
+- `Microsoft.Extensions.Configuration.Json` - работа с файлами конфигурации в формате `json`
+
+Для работы с файлами конфигурации достаточно использовать пакет `Microsoft.Extensions.Configuration.Json`.
+
+1. Для использования конфигурации добавляем в проект файл `appsettings.json` - стандартное название для файла конфигурации приложения. Можно придумать своё.
+
+2. Не забываем настроить проект таким образом, что бы файл конфигурации копировался в выходной каталог при сборке (если файл изменился)
+
+```xml
+<ItemGroup>
+  <None Update="appsettings.json">
+    <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+  </None>
+</ItemGroup>
+```
+
+3. В кода программы для чтения файла используем готовый механизм построителя конфигурации
+
+```C#
+var configuration = new ConfigurationBuilder()
+   .AddJsonFile("appsettings.json")
+   .Build();
+```
+
+4. В файле конфигурации предусмотрена стандартная секция для хранения строк подключения
+
+```json
+{
+  "ConnectionStrings": {
+    "Default": "Data Source=(localdb)\\MSSQLLocalDB;Initial Catalog=Students.Test.db"
+  }
+}
+```
+
+5. Что бы получить строку подключения из объекта конфигурации предусмотрен специальный метод `GetConnectionString("name")`:
+
+Так как мы разместили в файле конфигурации строку подключения с идентификатором `"Default"`, то и запрашивать будем её.
+
+```C#
+var db_options = new DbContextOptionsBuilder<StudentsDB>()
+   .UseSqlServer(configuration.GetConnectionString("Default"))
+   .Options;
+
+using (var db = new StudentsDB(db_options))
+{
+    var grous_with_max_students = db.Groups
+       .Include(g => g.Students)
+       .OrderByDescending(g => g.Students.Count())
+       .First();
+
+    Console.WriteLine(grous_with_max_students.Name);
+    foreach (var student in grous_with_max_students.Students)
+        Console.WriteLine("{0} {1} {2}", student.LastName, student.Name, student.Patronymic);
+}
+```

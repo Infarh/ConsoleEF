@@ -3,6 +3,7 @@ using System.Linq;
 using ConsoleEF.Context;
 using ConsoleEF.Entities;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 
 namespace ConsoleEF
 {
@@ -68,6 +69,25 @@ namespace ConsoleEF
                 }
             }
 
+            var configuration = new ConfigurationBuilder()
+               .AddJsonFile("appsettings.json")
+               .Build();
+
+            var db_options = new DbContextOptionsBuilder<StudentsDB>()
+               .UseSqlServer(configuration.GetConnectionString("Default"))
+               .Options;
+
+            using (var db = new StudentsDB(db_options))
+            {
+                var grous_with_max_students = db.Groups
+                   .Include(g => g.Students)
+                   .OrderByDescending(g => g.Students.Count())
+                   .First();
+
+                Console.WriteLine(grous_with_max_students.Name);
+                foreach (var student in grous_with_max_students.Students)
+                    Console.WriteLine("{0} {1} {2}", student.LastName, student.Name, student.Patronymic);
+            }
         }
     }
 }
